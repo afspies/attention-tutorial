@@ -7,8 +7,9 @@ import haiku as hk
 import optax
 from functools import partial
 import tensorflow_datasets as tfds
-import tetrominoes_loader as tetrominoes
 
+
+from .tetrominoes_loader import dataset as tetrominoes_dataloader
 from .slotattention_model import SlotAttentionAE
 
 cfg = {
@@ -74,18 +75,17 @@ def train_model(ds, attention_fn, position_enc_fn):
         # Do SGD on a batch of training examples.
         loss, params, opt_state = update(params, next(rng_seq), opt_state, batch)
 
-        # Save parameters
-        if step % 50000 == 0:
-            with open(f'./models/step_{step}.pkl', 'wb') as f:
-                pickle.dump(params, f)
-
         # Apply model on test sequence for tensorboard
         if step % 500 == 0:         
-            # Output a raw+reconstruction pair
-            reco = net.apply(params, reco_key, test_image)
+            # Log a reconstruction and accompanying attention masks 
+            reco, attn = net.apply(params, reco_key, (test_image, True))
             reco = (reco/2.)+0.5
+            # Horitontally stack masks
+            attn = np.expand_dims(np.hstack(list(attn[0].T.reshape(4,35,35))), axis=(0,-1)) 
+
             with file_writer.as_default():
                 tf.summary.image("Training Reco", reco, step=step)
+                tf.summary.image("Attention Masks", attn, step=step)
 
         if step % 100 == 0:
             with file_writer.as_default():
@@ -105,8 +105,11 @@ def loss(params, rng_key, batch):
     return jnp.mean((batch-reco)**2)
 
 def forward_fn(x, attention_fn=None, position_enc_fn=None, cfg=None):
+    get_attn=False
+    if isinstance(x, tuple):
+        x, get_attn  = x
     model = SlotAttentionAE(cfg, attention_fn, position_enc_fn)
-    return model(x)
+    return model(x, get_attn=get_attn)
 
 def get_optimizer(config):
     warm_up_poly = optax.polynomial_schedule(init_value=1/config['warmup_iter'], end_value=1,
@@ -122,14 +125,14 @@ def get_optimizer(config):
     )
     return opt
 
-def load_data(data_path, cfg, training=True, batchsize=20):
+def load_data(data_path, batch_size=20, training=True):
     parallel_map_calls = tf.data.experimental.AUTOTUNE
-    dataset = tetrominoes.dataset(data_path, get_masks=False, map_parallel_calls=parallel_map_calls)
+    dataset = tetrominoes_dataloader(data_path, get_masks=False, map_parallel_calls=parallel_map_calls)
   
     if training:
-        dataset = dataset.shuffle(10*batchsize, seed=cfg['rng_seed'],reshuffle_each_iteration=True).repeat()
+        dataset = dataset.shuffle(10*batch_size, seed=cfg['rng_seed'],reshuffle_each_iteration=True).repeat()
 
-    dataset = dataset.batch(batchsize)
+    dataset = dataset.batch(batch_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return iter(tfds.as_numpy(dataset)) 
 
