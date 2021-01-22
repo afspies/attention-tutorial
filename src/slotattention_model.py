@@ -163,7 +163,7 @@ class SoftPositionEmbed(hk.Module):
             resolution: Tuple of integers specifying width and height of grid.
         """
         super().__init__(name=name)
-        self.grid = jnp.array(position_enc_fn(resolution))
+        self.grid = jnp.expand_dims(jnp.array(position_enc_fn(resolution)), axis=0)
 
         w_init = hk.initializers.VarianceScaling(scale=2.0) # He Initializing for ReLU + Linear and CNN
         self.linear = hk.Linear(hidden_size, w_init=w_init, name='soft_pos_emb_linear')
