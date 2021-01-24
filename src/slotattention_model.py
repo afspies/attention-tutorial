@@ -112,7 +112,7 @@ class SlotAttentionModule(hk.Module):
             slots = self.layer_norm_1(slots)
 
             if get_attn and i==T-1:
-                slots, attn = self.attention_fn(k, self.q(slots), v, get_attn)
+                slots, attn = self.attention_fn(k, self.q(slots), v, get_attn=get_attn)
             else:
                 slots = self.attention_fn(k, self.q(slots), v)
 

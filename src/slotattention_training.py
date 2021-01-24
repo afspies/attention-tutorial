@@ -68,13 +68,15 @@ def train_model(ds, attention_fn, position_enc_fn):
 
     step = 0
     print("Training Starting")
-    while step < 5E+5:
+    while step < 8E+4:
         step += 1
         batch = next(ds)
         batch = ((jnp.asarray(batch, dtype=jnp.float32)/255.)-0.5)*2.
         # Do SGD on a batch of training examples.
         loss, params, opt_state = update(params, next(rng_seq), opt_state, batch)
-
+        if jnp.isnan(loss):
+            print("Something is wrong")
+            return
         # Apply model on test sequence for tensorboard
         if step % 500 == 0:         
             # Log a reconstruction and accompanying attention masks 
@@ -94,7 +96,7 @@ def train_model(ds, attention_fn, position_enc_fn):
 @jax.jit
 def update(params, rng_key, opt_state, batch):
     """Learning rule (stochastic gradient descent)."""
-    loss_val, grads = jax.value_and_grad(loss)(params, rng_key, batch)
+    loss_val, grads = jax.value_and_grad(loss, 0)(params, rng_key, batch)
     updates, opt_state = opt.update(grads, opt_state)
     new_params = optax.apply_updates(params, updates)
     return loss_val, new_params, opt_state
