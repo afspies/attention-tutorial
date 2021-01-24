@@ -74,9 +74,6 @@ def train_model(ds, attention_fn, position_enc_fn):
         batch = ((jnp.asarray(batch, dtype=jnp.float32)/255.)-0.5)*2.
         # Do SGD on a batch of training examples.
         loss, params, opt_state = update(params, next(rng_seq), opt_state, batch)
-        if jnp.isnan(loss):
-            print("Something is wrong")
-            return
         # Apply model on test sequence for tensorboard
         if step % 500 == 0:         
             # Log a reconstruction and accompanying attention masks 
